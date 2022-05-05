@@ -12,6 +12,7 @@ def parse_configs():
     parser.add_argument("--config", is_config_file=True)
     parser.add_argument("--name", type=str, default="debug")
     parser.add_argument("--mode", type=str, default="test", choices=["train", "resume", "test", "test_seen", "test_unseen"])
+    parser.add_argument("--punet", type=bool, default=False)
 
     # architecture
     parser.add_argument("--hidden_size", type=int, default=256)

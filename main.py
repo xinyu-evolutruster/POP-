@@ -18,10 +18,11 @@ from lib.dataset import Dataset
 
 # from lib.trainer.train import train
 from lib.trainer.train_pnet_bodyvert import train
+# from lib.trainer.infer import test_seen_clothing, test_unseen_clothing
+from lib.trainer.infer_pnet_bodyvert import test_seen_clothing, test_unseen_clothing
 
 from lib.utils_train import adjust_loss_weights
 from lib.utils_model import SampleSquarePoints
-from lib.infer import test_seen_clothing, test_unseen_clothing
 
 import os
 PROJECT_DIR = os.path.dirname(os.path.realpath(__file__))

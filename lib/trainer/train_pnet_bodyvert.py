@@ -58,6 +58,9 @@ def train(
                                        uv_coords_map_batch,
                                        pq_batch)
         # [4, N, 3]
+        pred_res = pred_res.unsqueeze(-1)
+        pred_normals = pred_normals.unsqueeze(-1)
+        
         transf_mtx_map = vtransf
         pred_res = torch.matmul(transf_mtx_map, pred_res).squeeze(-1)
         pred_normals = torch.matmul(transf_mtx_map, pred_normals).squeeze(-1)

@@ -8,3 +8,4 @@ epochs: 401
 meanshape_posmap_size: 128
 query_posmap_size: 256
 mode: train
+punet: True

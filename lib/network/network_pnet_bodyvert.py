@@ -23,19 +23,26 @@ class Network(nn.Module):
         decoder_input_dimension = pose_feature_channel + geometry_feature_channel 
         self.decoder = ShapeDecoder(decoder_input_dimension, hidden_size=hidden_size)
         
-    def forward(self, posmap, geometry_feature_map, uv_location, pq_coords, valid_idx):
+    def forward(self, posmap, geometry_feature_map, uv_location, pq_coords):
         B = posmap.shape[0]
-
+        # print(posmap.shape)
+        posmap = posmap.permute([0, 2, 1])
+ 
         # pose_feature_map = self.unet_pose_feature(posmap)
         pose_feature_map = self.pointnet_pose_feature(posmap)
         # print("pose_feature_map shape: {}".format(pose_feature_map.shape))
-        
+        # print("geometry_feature_map shape: {}".format(geometry_feature_map.shape))
+
+        pose_feature_map = pose_feature_map.permute([0, 2, 1])
         pixel_feature = torch.cat([pose_feature_map, geometry_feature_map], dim=1)
 
         input_feature = pixel_feature
 
         residuals, normals = self.decoder(input_feature)
-        residuals = residuals.view(B, 3, -1)
-        normals = normals.view(B, 3, -1)
+        # print("residuals shape: {}".format(residuals.shape))
+        # print("normals shape: {}".format(normals.shape))
+
+        residuals = residuals.permute([0, 2, 1])
+        normals = normals.permute([0, 2, 1])
 
         return residuals, normals
