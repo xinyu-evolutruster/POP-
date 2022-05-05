@@ -10,11 +10,15 @@ from lib.config_parser import parse_configs, parse_outfits
 from lib.utils_io import load_masks, load_barycentric_coords
 from lib.utils_io import save_model, save_latent_features, load_latent_features
 
-# from myPOP.lib.network.network import Network
-from lib.network.network_pnet import Network
+# from lib.network.network import Network
+# from lib.network.network_pnet import Network
+from lib.network.network_pnet_bodyvert import Network
 
 from lib.dataset import Dataset
-from lib.train import train
+
+# from lib.trainer.train import train
+from lib.trainer.train_pnet_bodyvert import train
+
 from lib.utils_train import adjust_loss_weights
 from lib.utils_model import SampleSquarePoints
 from lib.infer import test_seen_clothing, test_unseen_clothing
@@ -74,12 +78,19 @@ def main():
     # print(model)
 
     # geometric feature tensor
-    geometry_feature_map = torch.ones(num_outfits_seen, 
-                                      args.geo_feature_channel,
-                                      args.meanshape_posmap_size,
-                                      args.meanshape_posmap_size)
-    geometry_feature_map.normal_(mean=0., std=0.01).to(DEVICE)
-    geometry_feature_map.requires_grad = True
+    if args.punet == False:
+        geometry_feature_map = torch.ones(num_outfits_seen, 
+                                        args.geo_feature_channel,
+                                        args.meanshape_posmap_size,
+                                        args.meanshape_posmap_size)
+        geometry_feature_map.normal_(mean=0., std=0.01).to(DEVICE)
+        geometry_feature_map.requires_grad = True
+    else:
+        geometry_feature_map = torch.ones(num_outfits_seen,
+                                        args.geo_feature_channel,
+                                        args.num_body_verts)
+        geometry_feature_map.normal_(mean=0., std=0.01).to(DEVICE)
+        geometry_feature_map.requires_grad = True
 
     subpixel_sampler = SampleSquarePoints(npoints=1, device=DEVICE)
     
@@ -149,10 +160,10 @@ def main():
 
         val_dataset = Dataset(split="test", outfits=val_outfit, **dataset_config)
         
-        # train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, drop_last=True)
-        # val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, drop_last=True)
-        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4, drop_last=True)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=4, drop_last=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, drop_last=True)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, drop_last=True)
+        # train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4, drop_last=True)
+        # val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=4, drop_last=True)
 
         writer = SummaryWriter(log_dir=log_dir)
 

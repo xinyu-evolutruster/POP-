@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import pytorch3d.ops.knn as knn
 import pytorch3d.ops as ops
+#from emd import EMDLoss
 
 def chamfer_loss_separate(output, target, weight=1e4, phase='train', debug=False):
     from chamferdist.chamferdist import ChamferDistance
@@ -48,3 +49,10 @@ def pcd_density_loss(output):
     density = dists.mean(-1).mean(-1)
     
     return density
+
+"""
+def emd_loss(output, target):
+    dist = EMDLoss()
+    cost = dist(output, target)
+    return cost
+"""

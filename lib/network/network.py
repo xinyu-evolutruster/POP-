@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from lib.utils_model import uv_to_grid
-from myPOP.lib.network.modules import UNet5DS, UNet6DS, UNet7DS, ShapeDecoder
+from lib.network.modules import UNet5DS, UNet6DS, UNet7DS, ShapeDecoder
 
 class Network(nn.Module):
     def __init__(

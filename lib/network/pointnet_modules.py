@@ -159,7 +159,7 @@ class PointNetSetAbstraction(nn.Module):
             new_xyz: sampled points position data, [B, C, S]
             new_points_concat: sample points feature data, [B, D', S]
         """
-        print("xyz shape in forward: {}".format(xyz.shape))
+        # print("xyz shape in forward: {}".format(xyz.shape))
         xyz = xyz.permute(0, 2, 1)
         if points is not None:
             points = points.permute(0, 2, 1)
@@ -241,7 +241,7 @@ class PointNet(nn.Module):
         self.fp4 = PointNetFeaturePropagation(768, [256, 256])
         self.fp3 = PointNetFeaturePropagation(384, [256, 256])
         self.fp2 = PointNetFeaturePropagation(320, [256, 128])
-        self.fp1 = PointNetFeaturePropagation(128, [128, 128, 128])
+        self.fp1 = PointNetFeaturePropagation(128, [128, 128])
         self.conv1 = nn.Conv1d(128, 128, 1)
         self.bn1 = nn.BatchNorm1d(128)
         self.drop1 = nn.Dropout(0.5)
@@ -251,42 +251,42 @@ class PointNet(nn.Module):
         l0_points = xyz
         l0_xyz = xyz[:,:3,:]
 
-        print("l0 xyz shape: {}".format(l0_xyz.shape))
-        print("l0 point shape: {}".format(l0_points.shape))
+        # print("l0 xyz shape: {}".format(l0_xyz.shape))
+        # print("l0 point shape: {}".format(l0_points.shape))
 
         l1_xyz, l1_points = self.sa1(l0_xyz)
-        print("l1 xyz shape: {}, l1 points shape: {}".format(l1_xyz.shape, l1_points.shape))
+        # print("l1 xyz shape: {}, l1 points shape: {}".format(l1_xyz.shape, l1_points.shape))
 
         l2_xyz, l2_points = self.sa2(l1_xyz, l1_points)
-        print("l2 xyz shape: {}, l2 points shape: {}".format(l2_xyz.shape, l2_points.shape))
+        # print("l2 xyz shape: {}, l2 points shape: {}".format(l2_xyz.shape, l2_points.shape))
         
         l3_xyz, l3_points = self.sa3(l2_xyz, l2_points)
-        print("l3 xyz shape: {}, l3 points shape: {}".format(l3_xyz.shape, l3_points.shape))
+        # print("l3 xyz shape: {}, l3 points shape: {}".format(l3_xyz.shape, l3_points.shape))
         
         l4_xyz, l4_points = self.sa4(l3_xyz, l3_points)
-        print("l4 xyz shape: {}, l4 points shape: {}".format(l4_xyz.shape, l4_points.shape))
+        # print("l4 xyz shape: {}, l4 points shape: {}".format(l4_xyz.shape, l4_points.shape))
 
         l3_points = self.fp4(l3_xyz, l4_xyz, l3_points, l4_points)
-        print("new l3 points shape: {}".format(l3_points.shape))
+        # print("new l3 points shape: {}".format(l3_points.shape))
         
         l2_points = self.fp3(l2_xyz, l3_xyz, l2_points, l3_points)
-        print("new l2 points shape: {}".format(l2_points.shape))
+        # print("new l2 points shape: {}".format(l2_points.shape))
         
         l1_points = self.fp2(l1_xyz, l2_xyz, l1_points, l2_points)
-        print("new l1 points shape: {}".format(l1_points.shape))
+        # print("new l1 points shape: {}".format(l1_points.shape))
         
         l0_points = self.fp1(l0_xyz, l1_xyz, None, l1_points)
-        print("new l0 points shape: {}".format(l0_points.shape))
+        # print("new l0 points shape: {}".format(l0_points.shape))
 
         x = self.drop1(F.relu(self.bn1(self.conv1(l0_points))))
-        print("x shape: {}".format(x.shape))
+        # print("x shape: {}".format(x.shape))
 
         x = self.conv2(x)
-        print("x shape: {}".format(x.shape))
+        # print("x shape: {}".format(x.shape))
 
         x = F.log_softmax(x, dim=1)
         x = x.permute(0, 2, 1)
-        print("x shape: {}".format(x.shape))
+        # print("x shape: {}".format(x.shape))
 
         return x
 

@@ -15,6 +15,7 @@ def test_seen_clothing(
                       model_name=None,
                       face_list_uv=None,
                       valid_idx=None,
+                      mean_valid_idx=None,
                       uv_coords_map=None,
                       bary_coords_map=None,
                       subpixel_sampler=None,
@@ -110,10 +111,20 @@ def test_seen_clothing(
 
             if "test" in mode:
                 save_spacing = 1 if save_all_results else 10
-                batch_num = full_pred[0]
+                batch_num = full_pred.shape[0]
                 for i in range(0, batch_num, step=save_spacing):
                     save_result_examples(sample_dir, model_name, scan_names[i], 
                                          points=full_pred[i], normals=pred_normals[i])
+            if "val" in mode:
+                save_spacing = 10
+                new_sample_dir = os.path.join(sample_dir, "pop_orig")
+                batch_num = full_pred.shape[0]
+                if not os.path.exists(new_sample_dir):
+                    os.mkdir(new_sample_dir)
+                for i in range(0, batch_num, 10):
+                    save_result_examples(new_sample_dir, model_name, scan_names[i], 
+                                         points=full_pred[i], normals=pred_normals[i])
+                                         
         test_s2m /= n_test_samples
         test_m2s /= n_test_samples
         test_lnormal /= n_test_samples

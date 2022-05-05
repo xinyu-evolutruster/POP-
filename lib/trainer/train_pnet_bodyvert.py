@@ -43,8 +43,6 @@ def train(
 
         optimizer.zero_grad()
 
-        transf_mtx_map = gen_transf_mtx_from_vtransf(vtransf, bary_coords_map, face_list_uv, scaling=transf_scaling)
-
         index = clothing_label
         geometry_feature_map_batch = geometry_feature_map[index, ...].to(device)
 
@@ -52,47 +50,23 @@ def train(
 
         pq_samples = subpixel_sampler.sample_regular_points()
         pq_batch = pq_samples.expand(batch, H * W, -1, -1)
-        
-        N_subsample = 1
-        bp_locations = posmap.expand(N_subsample, -1, -1, -1, -1).permute([1, 2, 3, 4, 0])
-        transf_mtx_map = transf_mtx_map.expand(N_subsample, -1, -1, -1, -1, -1).permute([1, 2, 3, 0, 4, 5])
 
-        pred_res, pred_normals = model(posmap_meanshape,
+        bp_locations = body_verts
+
+        pred_res, pred_normals = model(body_verts,
                                        geometry_feature_map_batch,
                                        uv_coords_map_batch,
-                                       pq_batch,
-                                       mean_valid_idx)
-
-        pred_res = pred_res.permute([0, 2, 3, 4, 1]).unsqueeze(-1)
-        pred_normals = pred_normals.permute([0, 2, 3, 4, 1]).unsqueeze(-1)
-        
-        # out --> [B, 3, H, W, N_samples] --> [4, 3, 256, 256, 1]
-        # [4, 256, 256, 1, 3, 1]
-
-        # transf_mtx_map.shape: [4, 256, 256, 1, 3, 3] 
-
-        # [4, 256, 256, 1, 3]
+                                       pq_batch)
+        # [4, N, 3]
+        transf_mtx_map = vtransf
         pred_res = torch.matmul(transf_mtx_map, pred_res).squeeze(-1)
         pred_normals = torch.matmul(transf_mtx_map, pred_normals).squeeze(-1)
         pred_normals = torch.nn.functional.normalize(pred_normals, dim=-1)
 
-        # [4, 3, 256, 256, 1]
-        full_pred = pred_res.permute([0, 4, 1, 2, 3]).contiguous() + bp_locations     #[bs, C, H, W, N_sample],
-        # full_pred = pred_res.contiguous() + bp_locations
-        # [4, 256, 256, 1, 3]
-        full_pred = full_pred.permute([0, 2, 3, 4, 1])
-        # [4, 66536, 1, 3]
-        full_pred = full_pred.reshape(batch, -1, N_subsample, 3)
-        # [4, valid_idx, 1, 3]
-        full_pred = full_pred[:, valid_idx, ...]
-        # [4, 65536, 1, 2]
-        pred_normals = pred_normals.reshape(batch, -1, N_subsample, 3)
-        # [4, valid_idx, 1, 3]
-        pred_normals = pred_normals[:, valid_idx, ...]
-
-        # [4, valid_idx, 3]
+        # [4, N, 3]
+        full_pred = pred_res.contiguous() + bp_locations     
         full_pred = full_pred.reshape(batch, -1, 3).contiguous()
-        # [4, valid_idx, 3]
+        # [4, N, 3]
         pred_normals = pred_normals.reshape(batch, -1, 3).contiguous()
 
         # ------------- loss ---------------
@@ -108,7 +82,7 @@ def train(
         # first term of chamfer distance
         nearest_idx = index_closest_gt.expand(3, -1, -1).permute([1, 2, 0]).long()
         target_points_chosen = torch.gather(scan_pc, dim=1, index=nearest_idx)
-        pc_difference = -full_pred + target_points_chosen
+        pc_difference = target_points_chosen - full_pred
         m2s = torch.sum(pc_difference * closest_target_normals, dim=-1)
         m2s = torch.mean(m2s ** 2)
 
@@ -119,29 +93,30 @@ def train(
         # regularize the garment shape space
         L_rg = torch.mean(geometry_feature_map_batch ** 2)
 
-        L_dense = pcd_density_loss(full_pred)
+        # L_dense = pcd_density_loss(full_pred)
 
         loss = w_s2m * s2m + w_m2s * m2s + w_normal * lnormals + \
-               w_lrd * L_rd + w_lrg * L_rg + w_dense * L_dense
+               w_lrd * L_rd + w_lrg * L_rg#  + w_dense * L_dense
         loss.backward()
 
         optimizer.step()
 
         # ------------- accumulate stats -------------
+        """
         stats = {
             "s2m": s2m, 
             "m2s": m2s, 
             "lnormals": lnormals,
             "lrd": L_rd, 
             "lrg": L_rg, 
-            "ldense": L_dense,
+            # "ldense": L_dense,
             "total_loss": loss
         }
         for key in stats.keys():
             summary_writer.add_scalar("{}".format(key), stats[key], step)
-
-        print("epoch: {}, step: {}, s2m: {:.3e}, m2s: {:.3e}, lnormal: {:.3e}, lrd: {:.3e}, lrg: {:.3e}, ldense: {:.3e}, total_loss: {:.3e}".format(
-            epoch_idx, step, s2m, m2s, lnormals, L_rd, L_rg, L_dense, loss
+        """
+        print("epoch: {}, step: {}, s2m: {:.3e}, m2s: {:.3e}, lnormal: {:.3e}, lrd: {:.3e}, lrg: {:.3e}, total_loss: {:.3e}".format(
+            epoch_idx, step, s2m, m2s, lnormals, L_rd, L_rg, loss
         ))
 
         train_s2m += s2m * batch
@@ -149,7 +124,7 @@ def train(
         train_normal += lnormals * batch
         train_lrd += L_rd * batch
         train_lrg += L_rg * batch
-        train_ldense += L_dense * batch
+        # train_ldense += L_dense * batch
         train_total += loss * batch
 
     train_s2m /= num_train_samples
@@ -157,7 +132,7 @@ def train(
     train_normal /= num_train_samples
     train_lrd /= num_train_samples
     train_lrg /= num_train_samples
-    train_ldense /= num_train_samples
+    # train_ldense /= num_train_samples
     train_total /= num_train_samples
 
     return train_s2m, train_m2s, train_normal, train_lrd, train_lrg, train_total

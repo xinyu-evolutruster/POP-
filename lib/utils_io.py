@@ -253,15 +253,15 @@ def save_result_examples(save_dir, model_name, result_name, points,
     if epoch == None:
         normals_file_name = "{}_{}_pred.ply".format(model_name, result_name)
     else:
-        print("normals are not None")
+        # print("normals are not None")
         normals_file_name = "{}_epoch{}_{}_pred.ply".format(model_name, str(epoch).zfill(5), result_name)
     normals_file_name = os.path.join(save_dir, normals_file_name)
 
     points = tensor2numpy(points)
 
     if normals is not None:
-        print("normals are not None 2")
-        print("normals_file_name is {}".format(normals_file_name))
+        # print("normals are not None 2")
+        # print("normals_file_name is {}".format(normals_file_name))
         normals = tensor2numpy(normals)
         color_normals = vertex_normal_2_vertex_color(normals)
         customized_export_ply(normals_file_name, v=points, v_n=normals, v_c=color_normals)

@@ -17,6 +17,7 @@ def parse_configs():
     parser.add_argument("--hidden_size", type=int, default=256)
     parser.add_argument("--pose_feature_channel", type=int, default=64)
     parser.add_argument("--geo_feature_channel", type=int, default=64)
+    parser.add_argument("--num_body_verts", type=int, default=10475)
 
     # posmap
     parser.add_argument("--query_posmap_size", type=int, default=256)

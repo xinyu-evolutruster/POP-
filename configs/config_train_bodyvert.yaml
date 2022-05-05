@@ -1,4 +1,4 @@
-name: POP_pretrained_ReSynthdata_12outfits_orig
+name: POP_pretrained_ReSynthdata_12outfits_bodyvert
 var_every: 1
 # dataset_type: resynth
 batch_size: 4

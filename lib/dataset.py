@@ -16,10 +16,7 @@ class Dataset(Dataset):
         self.data_dirs = {}
         for outfit in outfits.keys():
             self.data_dirs[outfit] = os.path.join(self.data_root, outfit, split)
-
-        print("split is {}".format(split))
-        print("outfits: ")
-        print(outfits)
+            print(self.data_dirs[outfit])
 
         self.query_posmap_size = query_posmap_size
         self.meanshape_posmap_size = meanshape_posmap_size
@@ -55,8 +52,6 @@ class Dataset(Dataset):
             file_list = sorted(glob.glob(os.path.join(outfit_datadir, "*.npz")))
             file_list_all = file_list_all + file_list
             subject_id_all = subject_id_all + [outfit.split('_')[1]] * len(file_list)
-
-        file_list_all = file_list_all[:1]
 
         for idx, file_name in enumerate(tqdm(file_list_all)):
             # if idx > 100: 
