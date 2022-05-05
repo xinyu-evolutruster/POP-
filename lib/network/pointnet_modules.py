@@ -290,6 +290,35 @@ class PointNet(nn.Module):
 
         return x
 
+class FeatureExpansion(nn.Module):
+    def __init__(self, in_size, hidden_size=64, out_size=64, r=4):
+        super(FeatureExpansion, self).__init__()
+
+        self.num_replicate = r
+        self.expansions = [nn.ModuleList()] * self.num_replicate
+
+        for i in range(self.num_replicate):
+            mlp_convs = self.expansions[i]
+            mlp_convs.append(nn.Conv1d(in_size, hidden_size, 1))
+            mlp_convs.append(nn.BatchNorm1d(hidden_size))
+            mlp_convs.append(nn.Conv1d(hidden_size, out_size, 1))
+
+    def forward(self, x):
+        # x: [B, C, N]
+        output = None
+        for i in range(self.num_replicate):
+            mlp_convs = self.expansions[i]
+            conv0 = mlp_convs[0]
+            bn = mlp_convs[1]
+            conv1 = mlp_convs[2]
+            fea = F.relu(conv1(bn(conv0(x))))
+            if i == 0:
+                output = fea.unsqueeze(1)
+            else:
+                fea = fea.unsqueeze(1)
+                output = torch.cat([output, fea], dim=1)
+        return output
+
 class ShapeDecoder(nn.Module):
     def __init__(self, in_size, hidden_size=256, actv_fn="softplus"):
         super(ShapeDecoder, self).__init__()
