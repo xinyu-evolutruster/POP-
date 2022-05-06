@@ -20,7 +20,7 @@ POP_pretrained_ReSynthdata_12outfits_orig:
     - rp_fiona_posed_013 # short tshirt + long pants, female
     - rp_janna_posed_032 # short tshirt, tucked-in + long pants, female
 
-POP_pretrained_ReSynthdata_12outfits_bodyvert:
+POP_pretrained_ReSynthdata_12outfits_bodyvert_upsample:
   seen:
     - rp_anna_posed_001 # a knee-length dress, short sleeve, female
     # - rp_beatrice_posed_025 # a knee-length dress, long sleeve, with folding details, female

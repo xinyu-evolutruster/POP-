@@ -43,11 +43,16 @@ def normal_loss(output_normals, target_normals, nearest_idx, weight=1.0, phase='
         return lnormal, target_normals_chosen
     
 def pcd_density_loss(output):
-    # dists, _, _ = knn.knn_points(output, output, K=21, return_sorted=True)
-    dists, _, _ = ops.ball_query(output, output,K=21, radius=0.1)
-    dists = dists[:, :, 1:].std(-1)
-    density = dists.mean(-1).mean(-1)
+    dists, _, _ = knn.knn_points(output, output, K=4, return_sorted=True)
+    # dists, _, _ = ops.ball_query(output, output,K=21, radius=0.1)
+    dists = dists[:, :, 1:]
+    eta_dists = -1 * dists
     
+    # h temporarily set to 0.03
+    h = 0.03
+    omega_dists = torch.exp(-dists * dists / h)
+    density = eta_dists * omega_dists
+    density = density.mean(-1).mean(-1).mean(-1)
     return density
 
 """

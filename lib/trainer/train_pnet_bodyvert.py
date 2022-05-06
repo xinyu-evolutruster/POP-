@@ -24,7 +24,7 @@ def train(
     w_s2m, w_m2s, w_normal, w_lrd, w_lrg = loss_weights
 
     # add, temporary
-    w_dense = 10000.0
+    w_dense = 1e4
 
     train_s2m, train_m2s, train_normal, train_lrd, train_lrg, train_total = 0., 0., 0., 0., 0., 0.
     train_ldense = 0.
@@ -51,7 +51,9 @@ def train(
         pq_samples = subpixel_sampler.sample_regular_points()
         pq_batch = pq_samples.expand(batch, H * W, -1, -1)
 
-        bp_locations = body_verts
+        # temporarily do a simple copy (instead of interpolation)
+        bp_locations = body_verts.unsqueeze(1).repeat(1, 4, 1, 1)
+        bp_locations = bp_locations.reshape(batch, -1, 3)
 
         pred_res, pred_normals = model(body_verts,
                                        geometry_feature_map_batch,
@@ -61,7 +63,9 @@ def train(
         pred_res = pred_res.unsqueeze(-1)
         pred_normals = pred_normals.unsqueeze(-1)
         
-        transf_mtx_map = vtransf
+        # temporarily do a simple copy (instead of interpolation)
+        transf_mtx_map = vtransf.unsqueeze(1).repeat(1, 4, 1, 1, 1).reshape(batch, -1, 3, 3)
+
         pred_res = torch.matmul(transf_mtx_map, pred_res).squeeze(-1)
         pred_normals = torch.matmul(transf_mtx_map, pred_normals).squeeze(-1)
         pred_normals = torch.nn.functional.normalize(pred_normals, dim=-1)
@@ -96,10 +100,10 @@ def train(
         # regularize the garment shape space
         L_rg = torch.mean(geometry_feature_map_batch ** 2)
 
-        # L_dense = pcd_density_loss(full_pred)
+        L_dense = pcd_density_loss(full_pred)
 
         loss = w_s2m * s2m + w_m2s * m2s + w_normal * lnormals + \
-               w_lrd * L_rd + w_lrg * L_rg#  + w_dense * L_dense
+               w_lrd * L_rd + w_lrg * L_rg  + w_dense * L_dense
         loss.backward()
 
         optimizer.step()
@@ -118,8 +122,8 @@ def train(
         for key in stats.keys():
             summary_writer.add_scalar("{}".format(key), stats[key], step)
         """
-        print("epoch: {}, step: {}, s2m: {:.3e}, m2s: {:.3e}, lnormal: {:.3e}, lrd: {:.3e}, lrg: {:.3e}, total_loss: {:.3e}".format(
-            epoch_idx, step, s2m, m2s, lnormals, L_rd, L_rg, loss
+        print("epoch: {}, step: {}, s2m: {:.3e}, m2s: {:.3e}, lnormal: {:.3e}, lrd: {:.3e}, lrg: {:.3e}, ldense: {:.3e}, total_loss: {:.3e}".format(
+            epoch_idx, step, s2m, m2s, lnormals, L_rd, L_rg, L_dense, loss
         ))
 
         train_s2m += s2m * batch
@@ -127,7 +131,7 @@ def train(
         train_normal += lnormals * batch
         train_lrd += L_rd * batch
         train_lrg += L_rg * batch
-        # train_ldense += L_dense * batch
+        train_ldense += L_dense * batch
         train_total += loss * batch
 
     train_s2m /= num_train_samples
@@ -135,7 +139,7 @@ def train(
     train_normal /= num_train_samples
     train_lrd /= num_train_samples
     train_lrg /= num_train_samples
-    # train_ldense /= num_train_samples
+    train_ldense /= num_train_samples
     train_total /= num_train_samples
 
     return train_s2m, train_m2s, train_normal, train_lrd, train_lrg, train_total

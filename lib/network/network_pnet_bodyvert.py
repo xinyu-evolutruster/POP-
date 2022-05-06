@@ -38,15 +38,25 @@ class Network(nn.Module):
  
         pose_feature_map = self.pointnet_pose_feature(posmap)
         pose_feature_map = pose_feature_map.permute([0, 2, 1])
+        
         # print("pose_feature_map shape: {}".format(pose_feature_map.shape))
         # print("geometry_feature_map shape: {}".format(geometry_feature_map.shape))
 
-        pose_feature_map = self.feature_expansion(pose_feature_map)
+        pose_feature_map = self.feature_expansion(pose_feature_map).permute([0, 1, 3, 2])
+        # print("pose_feature_map shape: {}".format(pose_feature_map.shape))
+        
         pose_feature_map = pose_feature_map.reshape(B, -1, self.pose_feature_channel)
+        # print("pose_feature_map shape: {}".format(pose_feature_map.shape))
+        
         geometry_feature_map = geometry_feature_map.unsqueeze(1).repeat(1, self.repeat, 1, 1)
-        geometry_feature_map = geometry_feature_map.reshape(B, -1, self.geometry_feature_channel)
+        geometry_feature_map = geometry_feature_map.permute([0, 1, 3, 2])
+        # print("geometry_feature_map shape: {}".format(geometry_feature_map.shape))
 
-        pixel_feature = torch.cat([pose_feature_map, geometry_feature_map], dim=1)
+        geometry_feature_map = geometry_feature_map.reshape(B, -1, self.geometry_feature_channel)
+        # print("geometry_feature_map shape: {}".format(geometry_feature_map.shape))
+
+        pixel_feature = torch.cat([pose_feature_map, geometry_feature_map], dim=2).permute([0, 2, 1])
+        # print("pixel_feature shape: {}".format(pixel_feature.shape))
 
         input_feature = pixel_feature
 

@@ -55,7 +55,9 @@ def test_seen_clothing(
 
             # bp_locations = posmap.expand(N_subsample, -1, -1, -1, -1).permute([1, 2, 3, 4, 0])
             # transf_mtx_map = transf_mtx_map.expand(N_subsample, -1, -1, -1, -1, -1).permute([1, 2, 3, 0, 4, 5])
-            bp_locations = body_verts
+            # bp_locations = body_verts
+            bp_locations = body_verts.unsqueeze(1).repeat(1, 4, 1, 1)
+            bp_locations = bp_locations.reshape(batch, -1, 3)
 
             # ---------------- move forward pass -------------------
 
@@ -66,7 +68,10 @@ def test_seen_clothing(
         
             pred_res = pred_res.unsqueeze(-1)
             pred_normals = pred_normals.unsqueeze(-1)
-            transf_mtx_map = vtransf
+            
+            # transf_mtx_map = vtransf
+            # temporarily do a simple copy (instead of interpolation)
+            transf_mtx_map = vtransf.unsqueeze(1).repeat(1, 4, 1, 1, 1).reshape(batch, -1, 3, 3)
 
             pred_res = torch.matmul(transf_mtx_map, pred_res).squeeze(-1)
             pred_normals = torch.matmul(transf_mtx_map, pred_normals).squeeze(-1)

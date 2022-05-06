@@ -295,16 +295,16 @@ class FeatureExpansion(nn.Module):
         super(FeatureExpansion, self).__init__()
 
         self.num_replicate = r
-        self.expansions = [nn.ModuleList()] * self.num_replicate
+        self.expansions = nn.ModuleList()
 
         for i in range(self.num_replicate):
-            mlp_convs = self.expansions[i]
-            mlp_convs.append(nn.Conv1d(in_size, hidden_size, 1))
+            mlp_convs = nn.ModuleList()
+            mlp_convs.append(nn.Conv1d(in_size, hidden_size, kernel_size=1))
             mlp_convs.append(nn.BatchNorm1d(hidden_size))
-            mlp_convs.append(nn.Conv1d(hidden_size, out_size, 1))
+            mlp_convs.append(nn.Conv1d(hidden_size, out_size, kernel_size=1))
+            self.expansions.append(mlp_convs)
 
     def forward(self, x):
-        # x: [B, C, N]
         output = None
         for i in range(self.num_replicate):
             mlp_convs = self.expansions[i]
