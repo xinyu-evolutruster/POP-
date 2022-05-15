@@ -109,6 +109,8 @@ def main():
         "data_root": data_root,
         "query_posmap_size": args.query_posmap_size,
         "meanshape_posmap_size": args.meanshape_posmap_size,
+        "sample_spacing": args.data_spacing,
+        "dataset_subset_portion": args.dataset_subset_portion,
     }
 
     model_config = {
@@ -118,7 +120,8 @@ def main():
         "bary_coords_map": bary_coords,
         "valid_idx": valid_index,
         "mean_valid_idx": mean_valid_index,
-        "transf_scaling": 0.02
+        "transf_scaling": 0.02,
+        "repeat": 6
     }
 
     # ----------- load checkpoints -------------
@@ -139,7 +142,7 @@ def main():
         load_latent_features(geo_latest_path, geometry_feature_map)
 
         if args.mode.lower() == "resume":
-            optimizer.load_state_dict(ckpt_loaded["optimizer_state"])
+            optimizer.load_state_dict(ckpt_loaded['optimizer_state'])
             for state in optimizer.state.values():
                 for k, v in state.items():
                     if torch.is_tensor(v):
@@ -151,13 +154,17 @@ def main():
             model = model.to(DEVICE)
             print("\n--------------------- Test with checkpoint at epoch {}".format(epoch_idx))
 
-    # Start training (from scratch or resume)
+    '''
+    ------------ Train Model ------------
+    '''
     print("mode: {}".format(args.mode.lower()))
     if args.mode.lower() in ["train", "resume"]:
         train_dataset = Dataset(split="train", outfits=outfits["seen"], **dataset_config)
 
-        val_outfit_name, val_outfit_idx = list(outfits["seen"].items())[0]
-        val_outfit = {val_outfit_name: val_outfit_idx}
+        val_outfit = dict()
+        for i in range(1):
+            val_outfit_name, val_outfit_idx = list(outfits["seen"].items())[i]
+            val_outfit[val_outfit_name] = val_outfit_idx
 
         val_dataset = Dataset(split="test", outfits=val_outfit, **dataset_config)
         
@@ -177,9 +184,12 @@ def main():
         for epoch_idx in pbar:
             # print("epoch index is {}".format(epoch_idx))
             w_decay_lrd = adjust_loss_weights(args.w_lrd, epoch_idx, mode="decay", start=args.decay_start, every=args.decay_every)
-            w_rise_normal = adjust_loss_weights(args.w_normal, epoch_idx, mode="rise", start=args.rise_start, every=args.rise_every)
+            w_rise_normal = adjust_loss_weights(args.w_normal, epoch_idx, mode="normal", start=args.rise_start, every=args.rise_every)
+            # w_pcd_dense = adjust_loss_weights(args.w_ldense, epoch_idx, mode="pcd", start=args.pcd_start)
+            w_s2m = adjust_loss_weights(args.w_s2m, epoch_idx, mode="s2m", start=args.s2m_start)
+            w_m2s = adjust_loss_weights(args.w_m2s, epoch_idx, mode="m2s", start=args.m2s_start)
 
-            loss_weights = torch.tensor([args.w_s2m, args.w_m2s, w_rise_normal, w_decay_lrd, args.w_lrg])
+            loss_weights = torch.tensor([w_s2m, w_m2s, w_rise_normal, w_decay_lrd, args.w_lrg,args.w_ldense])
 
             train_stats = train(model,
                                 train_loader,
@@ -191,7 +201,7 @@ def main():
                                 subpixel_sampler=subpixel_sampler,
                                 **model_config)
 
-            if epoch_idx % 50 == 0 or epoch_idx == n_epochs - 1:
+            if (epoch_idx + 1) % 50 == 0 or epoch_idx == n_epochs - 1:
                 ckpt_path = os.path.join(ckpt_dir, "{}_epoch{}_model.pt".format(exp_name, str(epoch_idx).zfill(5)))
                 save_model(ckpt_path, model, epoch_idx, optimizer)
                 geo_ckpt_path = os.path.join(ckpt_dir, "{}_epoch{}_geom_featmap.pt".format(exp_name, str(epoch_idx).zfill(5)))
@@ -199,13 +209,13 @@ def main():
             
             # test on val dataset every N epochs
             print("current epoch: {}".format(epoch_idx))
-            if True:
+            if (epoch_idx + 1) % args.val_every == 0:
                 print("val for epoch {}".format(epoch_idx))
                 dur = (time.time() - start) / (60 * (epoch_idx - epoch_now + 1))
                 now = datetime.now()
                 datetime_str = now.strftime("%d/%m/%Y %H:%M:%S")
                 print("\n{}, Epoch {}, average {:.2f} min / epoch".format(datetime_str, epoch_idx, dur))
-                print("weights s2m: {:.1e}, m2s: {:.1e}, normal: {:.1e}, lrd: {:.1e}".format(args.w_s2m, args.w_m2s, w_rise_normal, w_decay_lrd))
+                print("weights s2m: {:.1e}, m2s: {:.1e}, normal: {:.1e}, lrd: {:.1e}".format(w_s2m, w_m2s, w_rise_normal, w_decay_lrd))
 
                 val_stats = test_seen_clothing(model,
                                                geometry_feature_map,
@@ -219,16 +229,74 @@ def main():
                 val_total_loss = np.stack(val_stats).dot(loss_weights)
                 val_stats.append(val_total_loss)
                 
-                tensorboard_tabs = ["scan2model", "model2scan", "normal_loss", "residual_square", "latent_rgl"]
+                tensorboard_tabs = ["scan2model", "model2scan", "normal_loss", "residual_square", "latent_rgl", "pcd_loss"]
                 stats = {"train": train_stats, "val": val_stats}
 
                 for split in ["train", "val"]:
                     for (tab, stat) in zip(tensorboard_tabs, stats[split]):
                         writer.add_scalar("{}/{}".format(tab, split), stat, epoch_idx)                
-    end = time.time()
-    t_total = (end - start) / 60
-    print("training finished, duration {:.2f} minutes\n".format(t_total))
-    writer.close()
+        end = time.time()
+        t_total = (end - start) / 60
+        print("training finished, duration {:.2f} minutes\n".format(t_total))
+        writer.close()
+
+    '''
+    ------------ Test model, seen outfits ------------
+    '''
+    if args.mode.lower() in ['train', 'test', 'test_seen']:
+
+        test_rst_msg = []
+        test_rst_msg.append('\n\n{}, epoch={}, test query resolution={} \n'.format(exp_name, epoch_idx, args.query_posmap_size))
+
+        print('\n------------------------Eval on test data, seen outfits, unseen poses...')
+
+        per_outfit_dataset = [{k:v} for k, v in outfits['seen'].items()]
+
+        sum_chamfer_all_outfits, sum_normal_all_outfts, num_ex_all_outfits = 0, 0, 0
+
+        test_rst_msg.append('\tEval on test set, seen clo:\n')
+
+        for outfit in per_outfit_dataset: # outfit is a dict that contains a single key:val pair (a clothing type)
+
+            test_set = Dataset(split='test', outfits=outfit, sample_spacing=args.data_spacing, dataset_subset_portion=1.0, **dataset_config)
+            test_loader = DataLoader(test_set, batch_size=args.batch_size*2, shuffle=False, num_workers=4)
+
+            samples_dir_outfit = os.path.join(samples_dir_test_seen_base, "upsample_multi", list(outfit.keys())[0])
+            os.makedirs(samples_dir_outfit, exist_ok=True)
+            
+            start = time.time()
+            test_stats = test_seen_clothing( 
+                                        model, geometry_feature_map, 
+                                        test_loader, epoch_idx,
+                                        samples_dir_outfit,
+                                        mode='test_seen',
+                                        subpixel_sampler=subpixel_sampler,
+                                        model_name=exp_name,
+                                        save_all_results=bool(args.save_all_results),
+                                        **model_config
+                                    )
+            test_m2s, test_s2m, test_lnormal, _, _ = test_stats
+
+            # accumulate errors across all outfits
+            sum_chamfer_outfit = (test_m2s+test_s2m) * len(test_set) 
+            sum_normal_outfit = test_lnormal * len(test_set)
+
+            sum_chamfer_all_outfits += sum_chamfer_outfit
+            sum_normal_all_outfts += sum_normal_outfit
+            num_ex_all_outfits += len(test_set)
+
+            outfit_info = '{:<18}, {} examples.'.format(list(outfit.keys())[0], len(test_set))
+            test_seen_result = "{:<34} m2s dist: {:.3e}, s2m dist: {:.3e}. Chamfer total: {:.3e}, normal loss: {:.3e}.\n"\
+                            .format(outfit_info, test_m2s, test_s2m, test_m2s+test_s2m, test_lnormal)
+            print(test_seen_result)
+            test_rst_msg.append('\t\t{}'.format(test_seen_result))
+        
+        # calculate the average error across all outfits
+        avg_chamfer_all = sum_chamfer_all_outfits / num_ex_all_outfits
+        avg_normal_all = sum_normal_all_outfts / num_ex_all_outfits
+        test_seen_full_stats = '\t\tOn all seen data, {} exmaples, average Chamfer: {:.3e}, average normal loss: {:.3e}\n'\
+            .format(num_ex_all_outfits, avg_chamfer_all, avg_normal_all)
+        test_rst_msg.append(test_seen_full_stats)
 
 if __name__ == '__main__':
     main()
