@@ -71,12 +71,12 @@ def load_barycentric_coords(PROJECT_DIR, posmap_size, body_model="smpl", device=
     barycentric = barycentric.reshape(posmap_size, posmap_size, 3)
     return torch.from_numpy(barycentric).to(device)
 
-def load_latent_features(file_path, latent_features):
+def load_latent_features(file_path, latent_features, device=None):
     full_filename = file_path
 
     if not os.path.isfile(full_filename):
         raise Exception("the file {} does not exist".format(full_filename))
-    
+
     data = torch.load(file_path)
     if isinstance(data["latent_codes"], torch.Tensor):
         latent_features.data[...] = data["latent_codes"].data[...]

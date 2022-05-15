@@ -291,7 +291,7 @@ class PointNet(nn.Module):
         return x
 
 class FeatureExpansion(nn.Module):
-    def __init__(self, in_size, hidden_size=64, out_size=64, r=4):
+    def __init__(self, in_size, hidden_size=64, out_size=64, r=9):
         super(FeatureExpansion, self).__init__()
 
         self.num_replicate = r
@@ -301,7 +301,10 @@ class FeatureExpansion(nn.Module):
             mlp_convs = nn.ModuleList()
             mlp_convs.append(nn.Conv1d(in_size, hidden_size, kernel_size=1))
             mlp_convs.append(nn.BatchNorm1d(hidden_size))
+            mlp_convs.append(nn.Conv1d(hidden_size, hidden_size, kernel_size=1))
+            mlp_convs.append(nn.BatchNorm1d(hidden_size))
             mlp_convs.append(nn.Conv1d(hidden_size, out_size, kernel_size=1))
+            
             self.expansions.append(mlp_convs)
 
     def forward(self, x):
@@ -309,15 +312,61 @@ class FeatureExpansion(nn.Module):
         for i in range(self.num_replicate):
             mlp_convs = self.expansions[i]
             conv0 = mlp_convs[0]
-            bn = mlp_convs[1]
             conv1 = mlp_convs[2]
-            fea = F.relu(conv1(bn(conv0(x))))
+            conv2 = mlp_convs[4]
+            bn0 = mlp_convs[1]
+            bn1 = mlp_convs[3]
+            fea = F.relu(conv1(bn0(conv0(x))))
+            fea = F.relu(conv2(bn1(fea)))
+
             if i == 0:
                 output = fea.unsqueeze(1)
             else:
                 fea = fea.unsqueeze(1)
                 output = torch.cat([output, fea], dim=1)
+             
         return output
+
+class SmallShapeDecoder(nn.Module):
+    def __init__(self, in_size, hidden_size=256, actv_fn="softplus"):
+        super(ShapeDecoder, self).__init__()
+
+        self.conv1 = nn.Conv1d(in_size, hidden_size, kernel_size=1)
+        self.conv2 = nn.Conv1d(hidden_size, hidden_size, kernel_size=1)
+        self.conv3 = nn.Conv1d(hidden_size, hidden_size, kernel_size=1)
+        self.conv4 = nn.Conv1d(hidden_size + in_size, hidden_size, kernel_size=1)
+        self.conv5 = nn.Conv1d(hidden_size, hidden_size, kernel_size=1)
+        self.conv6 = nn.Conv1d(hidden_size, 3, kernel_size=1)
+
+        self.conv5N = nn.Conv1d(hidden_size, hidden_size, kernel_size=1)
+        self.conv6N = nn.Conv1d(hidden_size, 3, kernel_size=1)
+
+        self.bn1 = nn.BatchNorm1d(hidden_size)
+        self.bn2 = nn.BatchNorm1d(hidden_size)
+        self.bn3 = nn.BatchNorm1d(hidden_size)
+        self.bn4 = nn.BatchNorm1d(hidden_size)
+        self.bn5 = nn.BatchNorm1d(hidden_size)
+
+        self.bn4N = nn.BatchNorm1d(hidden_size)
+        self.bn5N = nn.BatchNorm1d(hidden_size)
+
+        self.actvn = nn.ReLU() if actv_fn == "relu" else nn.Softplus()
+
+    def forward(self, x):
+        x1 = self.actvn(self.bn1(self.conv1(x)))
+        x2 = self.actvn(self.bn2(self.conv2(x1)))
+        x3 = self.actvn(self.bn3(self.conv3(x2)))
+        x4 = self.actvn(self.bn4(self.conv4(torch.cat([x, x3], dim=1))))
+
+        # predict residuals
+        x5 = self.actvn(self.bn5(self.conv5(x4)))
+        x6 = self.conv6(x6)
+
+        # predict normals
+        x5N = self.actvn(self.bn5N(self.conv6N(x4)))
+        x6N = self.actvn(x5N)
+
+        return x6, x6N
 
 class ShapeDecoder(nn.Module):
     def __init__(self, in_size, hidden_size=256, actv_fn="softplus"):

@@ -18,10 +18,12 @@ def train(
          face_list_uv=None,
          bary_coords_map=None,
          device="cuda",
-         transf_scaling=1.0):
+         transf_scaling=1.0,
+         repeat=4
+         ):
     
     num_train_samples = len(train_loader.dataset)
-    w_s2m, w_m2s, w_normal, w_lrd, w_lrg = loss_weights
+    w_s2m, w_m2s, w_normal, w_lrd, w_lrg, w_ldense = loss_weights
 
     # add, temporary
     w_dense = 1e4
@@ -52,7 +54,7 @@ def train(
         pq_batch = pq_samples.expand(batch, H * W, -1, -1)
 
         # temporarily do a simple copy (instead of interpolation)
-        bp_locations = body_verts.unsqueeze(1).repeat(1, 4, 1, 1)
+        bp_locations = body_verts.unsqueeze(1).repeat(1, repeat, 1, 1)
         bp_locations = bp_locations.reshape(batch, -1, 3)
 
         pred_res, pred_normals = model(body_verts,
@@ -64,7 +66,7 @@ def train(
         pred_normals = pred_normals.unsqueeze(-1)
         
         # temporarily do a simple copy (instead of interpolation)
-        transf_mtx_map = vtransf.unsqueeze(1).repeat(1, 4, 1, 1, 1).reshape(batch, -1, 3, 3)
+        transf_mtx_map = vtransf.unsqueeze(1).repeat(1, repeat, 1, 1, 1).reshape(batch, -1, 3, 3)
 
         pred_res = torch.matmul(transf_mtx_map, pred_res).squeeze(-1)
         pred_normals = torch.matmul(transf_mtx_map, pred_normals).squeeze(-1)
@@ -126,13 +128,13 @@ def train(
             epoch_idx, step, s2m, m2s, lnormals, L_rd, L_rg, L_dense, loss
         ))
 
-        train_s2m += s2m * batch
-        train_m2s += m2s * batch
-        train_normal += lnormals * batch
-        train_lrd += L_rd * batch
-        train_lrg += L_rg * batch
-        train_ldense += L_dense * batch
-        train_total += loss * batch
+        train_s2m += s2m.item() * batch
+        train_m2s += m2s.item() * batch
+        train_normal += lnormals.item() * batch
+        train_lrd += L_rd.item() * batch
+        train_lrg += L_rg.item() * batch
+        train_ldense += L_dense.item() * batch
+        train_total += loss.item() * batch
 
     train_s2m /= num_train_samples
     train_m2s /= num_train_samples
@@ -142,4 +144,4 @@ def train(
     train_ldense /= num_train_samples
     train_total /= num_train_samples
 
-    return train_s2m, train_m2s, train_normal, train_lrd, train_lrg, train_total
+    return train_s2m, train_m2s, train_normal, train_lrd, train_lrg, train_ldense, train_total

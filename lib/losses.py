@@ -2,7 +2,8 @@ import torch
 import torch.nn.functional as F
 import pytorch3d.ops.knn as knn
 import pytorch3d.ops as ops
-#from emd import EMDLoss
+
+from emd.emd import earth_mover_distance
 
 def chamfer_loss_separate(output, target, weight=1e4, phase='train', debug=False):
     from chamferdist.chamferdist import ChamferDistance
@@ -42,8 +43,8 @@ def normal_loss(output_normals, target_normals, nearest_idx, weight=1.0, phase='
         lnormal = lnormal.mean(-1).mean(-1) # avg over all but batch axis
         return lnormal, target_normals_chosen
     
-def pcd_density_loss(output):
-    dists, _, _ = knn.knn_points(output, output, K=4, return_sorted=True)
+def pcd_density_loss(output, rep_time=4):
+    dists, _, _ = knn.knn_points(output, output, K=rep_time)
     # dists, _, _ = ops.ball_query(output, output,K=21, radius=0.1)
     dists = dists[:, :, 1:]
     eta_dists = -1 * dists
@@ -55,9 +56,5 @@ def pcd_density_loss(output):
     density = density.mean(-1).mean(-1).mean(-1)
     return density
 
-"""
 def emd_loss(output, target):
-    dist = EMDLoss()
-    cost = dist(output, target)
-    return cost
-"""
+    return torch.mean(earth_mover_distance(output, target, transpose=False))

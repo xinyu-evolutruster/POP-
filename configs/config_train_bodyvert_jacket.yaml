@@ -1,0 +1,11 @@
+name: POP_pretrained_ReSynthdata_12outfits_bodyvert_upsample_jacket
+var_every: 1
+# dataset_type: resynth
+batch_size: 4
+# save_all_results: 0
+data_spacing: 1
+epochs: 601
+meanshape_posmap_size: 128
+query_posmap_size: 256
+mode: train
+punet: True

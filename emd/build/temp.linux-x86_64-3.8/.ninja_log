@@ -1,0 +1,6 @@
+# ninja log v5
+0	19002	1651837527821050096	/root/PUNet-Pytorch/emd/build/temp.linux-x86_64-3.8/cuda/emd.o	461633eeaa67fc6
+14	19919	1651850275043614809	/root/PUNet-Pytorch/emd/build/temp.linux-x86_64-3.8/cuda/emd.o	9cbb6f6342a89851
+2	13761	1651850335372422041	/root/PUNet-Pytorch/emd/build/temp.linux-x86_64-3.8/cuda/emd_kernel.o	3516786543386547
+2	14054	1651850372080913221	/root/PUNet-Pytorch/emd/build/temp.linux-x86_64-3.8/cuda/emd_kernel.o	5034991abe355b2d
+2	17662	1651850375688961498	/root/PUNet-Pytorch/emd/build/temp.linux-x86_64-3.8/cuda/emd.o	cd3bbacbcb71cfb5

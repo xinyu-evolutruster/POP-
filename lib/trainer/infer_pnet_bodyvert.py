@@ -2,7 +2,7 @@ import os
 import torch
 from tqdm import tqdm
 
-from lib.losses import chamfer_loss, normal_loss
+from lib.losses import chamfer_loss, normal_loss, pcd_density_loss
 from lib.utils_model import gen_transf_mtx_from_vtransf
 from lib.utils_io import save_result_examples, customized_export_ply, vertex_normal_2_vertex_color
 
@@ -22,7 +22,8 @@ def test_seen_clothing(
                       save_all_results=False,
                       transf_scaling=1.0,
                       device="cuda",
-                      mode="val"
+                      mode="val",
+                      repeat=4,
                       ):
     '''
     If the test outfit is seen, just use the optimal clothing code found during training
@@ -34,7 +35,7 @@ def test_seen_clothing(
 
     N_subsample = 1
 
-    test_s2m, test_m2s, test_lnormal, test_lrd, test_lrg = 0., 0., 0., 0., 0.
+    test_s2m, test_m2s, test_lnormal, test_lrd, test_lrg, test_ldense = 0., 0., 0., 0., 0., 0.
 
     with torch.no_grad():
         for data in tqdm(test_loader):
@@ -56,7 +57,8 @@ def test_seen_clothing(
             # bp_locations = posmap.expand(N_subsample, -1, -1, -1, -1).permute([1, 2, 3, 4, 0])
             # transf_mtx_map = transf_mtx_map.expand(N_subsample, -1, -1, -1, -1, -1).permute([1, 2, 3, 0, 4, 5])
             # bp_locations = body_verts
-            bp_locations = body_verts.unsqueeze(1).repeat(1, 4, 1, 1)
+            rep_time = repeat
+            bp_locations = body_verts.unsqueeze(1).repeat(1, rep_time, 1, 1)
             bp_locations = bp_locations.reshape(batch, -1, 3)
 
             # ---------------- move forward pass -------------------
@@ -71,7 +73,7 @@ def test_seen_clothing(
             
             # transf_mtx_map = vtransf
             # temporarily do a simple copy (instead of interpolation)
-            transf_mtx_map = vtransf.unsqueeze(1).repeat(1, 4, 1, 1, 1).reshape(batch, -1, 3, 3)
+            transf_mtx_map = vtransf.unsqueeze(1).repeat(1, rep_time, 1, 1, 1).reshape(batch, -1, 3, 3)
 
             pred_res = torch.matmul(transf_mtx_map, pred_res).squeeze(-1)
             pred_normals = torch.matmul(transf_mtx_map, pred_normals).squeeze(-1)
@@ -105,11 +107,14 @@ def test_seen_clothing(
             # regularize the garment shape space
             L_rg = torch.mean(geom_feature_map_batch ** 2)
 
+            L_dense = pcd_density_loss(full_pred, rep_time=rep_time)
+
             test_s2m += s2m
             test_m2s += m2s
             test_lnormal += lnormals
             test_lrd += L_rd
             test_lrg += L_rg
+            test_ldense += L_dense
 
             if "test" in mode:
                 save_spacing = 1 if save_all_results else 10
@@ -132,15 +137,17 @@ def test_seen_clothing(
         test_lnormal /= n_test_samples
         test_lrd /= n_test_samples
         test_lrg /= n_test_samples
+        test_ldense /= n_test_samples
 
         test_s2m = test_s2m.detach().cpu().numpy()
         test_m2s = test_m2s.detach().cpu().numpy()
         test_lnormal = test_lnormal.detach().cpu().numpy()
         test_lrd = test_lrd.detach().cpu().numpy()
         test_lrg = test_lrg.detach().cpu().numpy()
+        test_ldense = test_ldense.detach().cpu().numpy()
 
-        print("m2s loss: {:.3e}, s2m loss: {:.3e}, normal loss: {:.3e}, lrd: {:.3e}, lrg: {:.3e}".format(
-            test_s2m, test_m2s, test_lnormal, test_lrd, test_lrg
+        print("m2s loss: {:.3e}, s2m loss: {:.3e}, normal loss: {:.3e}, lrd: {:.3e}, lrg: {:.3e}, ldense: {:.3e}".format(
+            test_s2m, test_m2s, test_lnormal, test_lrd, test_lrg, test_ldense
         ))
 
         if mode == "val":
@@ -149,7 +156,7 @@ def test_seen_clothing(
                 save_result_examples(sample_dir, model_name, scan_names[0],
                                      points=full_pred[0], normals=pred_normals[0],
                                      patch_color=None, epoch=epoch_idx)
-    return [test_s2m, test_m2s, test_lnormal, test_lrd, test_lrg]        
+    return [test_s2m, test_m2s, test_lnormal, test_lrd, test_lrg, test_ldense]        
     
 def test_unseen_clothing(
                         model,

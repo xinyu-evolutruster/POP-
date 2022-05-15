@@ -30,6 +30,7 @@ def parse_configs():
     parser.add_argument("--w_normal", type=float, default=1.0)
     parser.add_argument("--w_lrd", type=float, default=2e3)
     parser.add_argument("--w_lrg", type=float, default=1.0)
+    parser.add_argument("--w_ldense", type=float, default=1e4)
 
     # training / eval related
     parser.add_argument("--epochs", type=int, default=500)
@@ -37,10 +38,17 @@ def parse_configs():
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--lr_geometry", type=float, default=5e-4)
     parser.add_argument("--decay_start", type=int, default=250)
+    parser.add_argument("--pcd_start", type=int, default=50)
+    parser.add_argument("--s2m_start", type=int, default=50)
+    parser.add_argument("--m2s_start", type=int, default=100)
     parser.add_argument("--decay_every", type=int, default=400)
-    parser.add_argument("--rise_start", type=int, default=250)
+    parser.add_argument("--rise_start", type=int, default=100)
     parser.add_argument("--rise_every", type=int, default=400)
     parser.add_argument("--val_every", type=int, default=1)
+
+    # dataset
+    parser.add_argument('--data_spacing', type=int, default=1)
+    parser.add_argument('--dataset_subset_portion', type=float, default=1.0)
 
     args, _ = parser.parse_known_args()
 

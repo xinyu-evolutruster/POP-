@@ -9,8 +9,12 @@ from tqdm import tqdm
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class Dataset(Dataset):
-    def __init__(self, data_root=None, split="train", outfits={},
-                 query_posmap_size=256, meanshape_posmap_size=128,
+    def __init__(self, data_root=None, 
+                 split="train", 
+                 outfits={},
+                 query_posmap_size=256, 
+                 meanshape_posmap_size=128,
+                 sample_spacing=1,
                  dataset_subset_portion=1.0):
         self.data_root = data_root
         self.data_dirs = {}
@@ -21,6 +25,7 @@ class Dataset(Dataset):
         self.query_posmap_size = query_posmap_size
         self.meanshape_posmap_size = meanshape_posmap_size
 
+        self.spacing = sample_spacing
         self.dataset_subset_portion = dataset_subset_portion
         self.split = split
 
@@ -48,10 +53,23 @@ class Dataset(Dataset):
         file_list_all = []
         subject_id_all = []
 
+        print(self.dataset_subset_portion)
+
         for outfit_id, (outfit, outfit_datadir) in enumerate(self.data_dirs.items()):
-            file_list = sorted(glob.glob(os.path.join(outfit_datadir, "*.npz")))
-            file_list_all = file_list_all + file_list
-            subject_id_all = subject_id_all + [outfit.split('_')[1]] * len(file_list)
+            flist = sorted(glob.glob(os.path.join(outfit_datadir, '*.npz')))[::self.spacing]
+            print('Loading {}, {} examples..'.format(outfit, len(flist)))
+            file_list_all = file_list_all + flist
+            subject_id_all = subject_id_all + [outfit.split('_')[0]] * len(flist)
+
+        # file_list_all = file_list_all[:16]
+
+        if self.dataset_subset_portion < 1.0:
+            import random
+            random.shuffle(file_list_all)
+            num_total = len(file_list_all)
+            num_chosen = int(self.dataset_subset_portion*num_total)
+            file_list_all = file_list_all[:num_chosen]
+            print('Total examples: {}, now only randomly sample {} from them...'.format(num_total, num_chosen))
 
         for idx, file_name in enumerate(tqdm(file_list_all)):
             # if idx > 100: 
