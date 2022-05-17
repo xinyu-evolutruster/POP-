@@ -107,6 +107,8 @@ def train(
         loss = w_s2m * s2m + w_m2s * m2s + w_normal * lnormals + \
                w_lrd * L_rd + w_lrg * L_rg  + w_dense * L_dense
         loss.backward()
+        # del loss
+        torch.cuda.empty_cache()
 
         optimizer.step()
 

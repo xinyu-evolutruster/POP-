@@ -353,18 +353,18 @@ class SmallShapeDecoder(nn.Module):
         self.actvn = nn.ReLU() if actv_fn == "relu" else nn.Softplus()
 
     def forward(self, x):
-        x1 = self.actvn(self.bn1(self.conv1(x)))
-        x2 = self.actvn(self.bn2(self.conv2(x1)))
-        x3 = self.actvn(self.bn3(self.conv3(x2)))
-        x4 = self.actvn(self.bn4(self.conv4(torch.cat([x, x3], dim=1))))
+        x1 = F.relu(self.bn1(self.conv1(x)))
+        x2 = F.relu(self.bn2(self.conv2(x1)))
+        x3 = F.relu(self.bn3(self.conv3(x2)))
+        x4 = F.relu(self.bn4(self.conv4(torch.cat([x, x3], dim=1))))
 
         # predict residuals
-        x5 = self.actvn(self.bn5(self.conv5(x4)))
-        x6 = self.conv6(x6)
+        x5 = F.relu(self.bn5(self.conv5(x4)))
+        x6 = self.conv6(x5)
 
         # predict normals
-        x5N = self.actvn(self.bn5N(self.conv6N(x4)))
-        x6N = self.actvn(x5N)
+        x5N = F.relu(self.bn5N(self.conv6N(x4)))
+        x6N = F.relu(x5N)
 
         return x6, x6N
 
@@ -399,20 +399,20 @@ class ShapeDecoder(nn.Module):
         self.actvn = nn.ReLU() if actv_fn == "relu" else nn.Softplus()
 
     def forward(self, x):
-        x1 = self.actvn(self.bn1(self.conv1(x)))
-        x2 = self.actvn(self.bn2(self.conv2(x1)))
-        x3 = self.actvn(self.bn3(self.conv3(x2)))
-        x4 = self.actvn(self.bn4(self.conv4(x3)))
-        x5 = self.actvn(self.bn5(self.conv5(torch.cat([x, x4], dim=1))))
+        x1 = F.relu(self.bn1(self.conv1(x)))
+        x2 = F.relu(self.bn2(self.conv2(x1)))
+        x3 = F.relu(self.bn3(self.conv3(x2)))
+        x4 = F.relu(self.bn4(self.conv4(x3)))
+        x5 = F.relu(self.bn5(self.conv5(torch.cat([x, x4], dim=1))))
 
         # predict residuals
-        x6 = self.actvn(self.bn6(self.conv6(x5)))
-        x7 = self.actvn(self.bn7(self.conv7(x6)))
+        x6 = F.relu(self.bn6(self.conv6(x5)))
+        x7 = F.relu(self.bn7(self.conv7(x6)))
         x8 = self.conv8(x7)
 
         # predict normals
-        x6N = self.actvn(self.bn6N(self.conv6N(x5)))
-        x7N = self.actvn(self.bn7N(self.conv7N(x6N)))
+        x6N = F.relu(self.bn6N(self.conv6N(x5)))
+        x7N = F.relu(self.bn7N(self.conv7N(x6N)))
         x8N = self.conv8N(x7N)
 
         return x8, x8N
