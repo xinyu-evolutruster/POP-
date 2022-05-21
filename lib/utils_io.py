@@ -3,6 +3,8 @@ import os
 import torch
 import numpy as np
 
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+
 def get_face_per_pixel(mask, face_list):
     '''
     :param mask: the uv_mask returned from posmap renderer, where -1 stands for background
@@ -79,6 +81,8 @@ def load_latent_features(file_path, latent_features, device=None):
 
     data = torch.load(file_path)
     if isinstance(data["latent_codes"], torch.Tensor):
+        print(data['latent_codes'].shape)
+        print(latent_features.shape)
         latent_features.data[...] = data["latent_codes"].data[...]
     else:
         raise NotImplementedError
@@ -289,3 +293,46 @@ def save_result_examples(save_dir, model_name, result_name, points,
         gt = tensor2numpy(gt)
         gt_file_name = normals_file_name.replace("pred.ply", "gt.ply")
         customized_export_ply(gt_file_name, v=gt)
+
+def get_scan_pcl_by_name(target_basename, num_pts=40000, dataset_type='resynth'):
+    '''
+    given the 'target name' (i.e. the name of a packed frame) from the dataloader, find its gt mesh/dense point cloud, 
+    and sample a point cloud at the specified resolution from it as the target of the optimization in the single scan animation application.
+
+    args:
+        target_basename: the name of a frame in the packed data. In general contains info of <subject> <sequence_name> <frame_id>.
+            Examples:
+                # CAPE data: 03375_shortlong_ATUsquat_trial2.000009
+                # ReSynth data: rp_rp_aaron_posed_002.96_jerseyshort_hips.00020
+        num_pts: the number of points to sample from the scan surface (if the scan is a mesh as in CAPE) or to subsample from
+                 the dense GT point cloud scan (if the scan is a point cloud as in ReSynth)
+        dataset_type: 'cape' or 'resynth', will decide which body model to use.
+
+    returns:
+        scan_pc: a sampled point cloud, treated as the 'ground truth scan' for the optimization
+        scan_normal: the points' normals of the sampled point cloud
+    '''
+    import numpy as np
+    import trimesh
+    import open3d as o3d
+    from os.path import join
+
+    scan_data_root = join(SCRIPT_DIR, '../data', dataset_type.lower(), 'scans')
+
+    outfit, pose, frame_id = target_basename.split('.')
+    outfit_basename, suboutfit_id = outfit[3:].rsplit('_', 1)
+    suboutfit_id = suboutfit_id.replace('suboutfit', '')
+
+    scan_data_fn = join(scan_data_root, outfit[3:], pose, '{}_pcl.ply'.format(frame_id)) # [3:]: for resynth data the name is rp_rp_<subj_name>_xxxx. first 3 are redundant characters
+
+    scan = o3d.io.read_point_cloud(scan_data_fn)
+    points = np.array(scan.points)
+    normals = np.array(scan.normals)
+
+    randperm = np.random.permutation(len(points))
+    points = points[randperm[:num_pts]]
+    normals = normals[randperm[:num_pts]]
+
+    scan_pc = torch.tensor(points).float().unsqueeze(0).cuda()
+    scan_normals = torch.tensor(normals).float().unsqueeze(0).cuda()
+    return scan_pc, scan_normals

@@ -1,4 +1,4 @@
-name: POP_pretrained_ReSynthdata_12outfits
+name: POP_pretrained_ReSynthdata_12outfits_bodyvert_upsample_corey
 dataset_type: resynth
 batch_size: 4
 save_all_results: 1
@@ -7,6 +7,7 @@ epochs: 401
 query_posmap_size: 256
 inp_posmap_size: 128
 mode: test
+punet: True
 
 
 # name: POP_pretrained_CAPEdata_14outfits

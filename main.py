@@ -119,7 +119,7 @@ def main():
         "uv_coords_map": uv_coords_map,
         "bary_coords_map": bary_coords,
         "valid_idx": valid_index,
-        "mean_valid_idx": mean_valid_index,
+        # "mean_valid_idx": mean_valid_index,
         "transf_scaling": 0.02,
         "repeat": 6
     }
@@ -139,6 +139,7 @@ def main():
         geo_checkpoints = sorted(geo_checkpoints)
 
         geo_latest_path = os.path.join(ckpt_dir, geo_checkpoints[-1])
+        # print(geometry_feature_map.shape)
         load_latent_features(geo_latest_path, geometry_feature_map)
 
         if args.mode.lower() == "resume":
@@ -189,7 +190,7 @@ def main():
             w_s2m = adjust_loss_weights(args.w_s2m, epoch_idx, mode="s2m", start=args.s2m_start)
             w_m2s = adjust_loss_weights(args.w_m2s, epoch_idx, mode="m2s", start=args.m2s_start)
 
-            loss_weights = torch.tensor([w_s2m, w_m2s, w_rise_normal, w_decay_lrd, args.w_lrg,args.w_ldense])
+            loss_weights = torch.tensor([w_s2m, w_m2s, w_rise_normal, w_decay_lrd, args.w_lrg, args.w_ldense])
 
             train_stats = train(model,
                                 train_loader,
@@ -258,17 +259,19 @@ def main():
 
         for outfit in per_outfit_dataset: # outfit is a dict that contains a single key:val pair (a clothing type)
 
-            test_set = Dataset(split='test', outfits=outfit, sample_spacing=args.data_spacing, dataset_subset_portion=1.0, **dataset_config)
+            test_set = Dataset(split='test', outfits=outfit, **dataset_config)
             test_loader = DataLoader(test_set, batch_size=args.batch_size*2, shuffle=False, num_workers=4)
 
-            samples_dir_outfit = os.path.join(samples_dir_test_seen_base, "upsample_multi", list(outfit.keys())[0])
+            samples_dir_outfit = os.path.join(samples_dir_test_seen_base, "upsample_beatrice", list(outfit.keys())[0])
             os.makedirs(samples_dir_outfit, exist_ok=True)
             
             start = time.time()
+            print("samples dir outfit: {}".format(samples_dir_outfit))
             test_stats = test_seen_clothing( 
                                         model, geometry_feature_map, 
-                                        test_loader, epoch_idx,
+                                        test_loader,
                                         samples_dir_outfit,
+                                        epoch_idx,
                                         mode='test_seen',
                                         subpixel_sampler=subpixel_sampler,
                                         model_name=exp_name,
@@ -297,6 +300,69 @@ def main():
         test_seen_full_stats = '\t\tOn all seen data, {} exmaples, average Chamfer: {:.3e}, average normal loss: {:.3e}\n'\
             .format(num_ex_all_outfits, avg_chamfer_all, avg_normal_all)
         test_rst_msg.append(test_seen_full_stats)
+
+    '''
+    ------------ Test model, unseen outfits ------------
+    '''
+    if args.mode.lower() in ['test', 'test_unseen']:
+        test_rst_msg = []
+        test_rst_msg.append('\n\n{}, epoch={}, test query resolution={} \n'.format(exp_name, epoch_idx, args.query_posmap_size))
+
+        print('\n------------------------Eval on test data, unseen outfit, unseen poses...')
+
+        per_outfit_dataset = [{k:v} for k, v in outfits['unseen'].items()]
+
+        test_rst_msg.append('\tEval on test set, unseen clo:')
+
+        for outfit in per_outfit_dataset:
+            assert args.num_unseen_frames ==1, "Currently only supports single scan optimization."
+            
+            print('------Sequence test data for animation:')
+            test_set = Dataset(split='test', outfits=outfit, **dataset_config)
+            test_loader = DataLoader(test_set, batch_size=args.batch_size*2, shuffle=False, num_workers=4)
+
+            print('------Single frame scan data for optimization:')
+            data_spacing_for_optim = len(test_set) // args.num_unseen_frames
+            dataset_config['sample_spacing'] = data_spacing_for_optim
+            test_set_for_optim = Dataset(split='test', outfits=outfit, **dataset_config)
+            test_loader_for_optim = DataLoader(test_set_for_optim, batch_size=args.batch_size, shuffle=False, num_workers=4)
+
+            samples_dir_outfit = os.path.join(samples_dir_test_unseen_base, 'query_resolution{}'.format(args.query_posmap_size))
+            
+            # loss weights for the optimization w.r.t. the unseen scan
+            print("epoch index is {}".format(epoch_idx))
+            w_decay_lrd = adjust_loss_weights(args.w_lrd, epoch_idx, mode="decay", start=args.decay_start, every=args.decay_every)
+            w_rise_normal = adjust_loss_weights(args.w_normal, epoch_idx, mode="normal", start=args.rise_start, every=args.rise_every)
+            # w_pcd_dense = adjust_loss_weights(args.w_ldense, epoch_idx, mode="pcd", start=args.pcd_start)
+            w_s2m = adjust_loss_weights(args.w_s2m, epoch_idx, mode="s2m", start=args.s2m_start)
+            w_m2s = adjust_loss_weights(args.w_m2s, epoch_idx, mode="m2s", start=args.m2s_start)
+            loss_weights = torch.tensor([w_s2m, w_m2s, w_rise_normal, w_decay_lrd, args.w_lrg, args.w_ldense])
+
+
+            test_stats = test_unseen_clothing(
+                                        model,
+                                        geometry_feature_map,
+                                        test_loader, 
+                                        test_loader_for_optim, 
+                                        epoch_idx,
+                                        samples_dir_outfit,
+                                        mode='test_unseen',
+                                        model_name=exp_name,
+                                        subpixel_sampler=subpixel_sampler,
+                                        loss_weights=loss_weights,
+                                        num_optim_iterations=args.num_optim_iterations,
+                                        random_subsample_scan=bool(args.random_subsample_scan),
+                                        save_all_results=bool(args.save_all_results),
+                                        **model_config
+                                        )
+
+            test_m2s, test_s2m, test_lnormal, _, _ = test_stats
+
+            outfit_info = '{:<18}, {} examples.'.format(list(outfit.keys())[0], len(test_set))
+            test_unseen_result = "{:<34} m2s dist: {:.3e}, s2m dist: {:.3e}. Chamfer total: {:.3e}, normal loss: {:.3e}.\n"\
+                                            .format(outfit_info, test_m2s, test_s2m, test_m2s+test_s2m, test_lnormal)
+            print(test_unseen_result)
+            test_rst_msg.append('\t\t{}'.format(test_unseen_result))
 
 if __name__ == '__main__':
     main()

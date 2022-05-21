@@ -45,10 +45,14 @@ def parse_configs():
     parser.add_argument("--rise_start", type=int, default=100)
     parser.add_argument("--rise_every", type=int, default=400)
     parser.add_argument("--val_every", type=int, default=1)
+    parser.add_argument("--num_unseen_frames", type=int, default=1)
+    parser.add_argument("--num_optim_iterations",type=int, default=10000)
+    parser.add_argument("--random_subsample_scan", type=bool, default=False)
 
     # dataset
     parser.add_argument('--data_spacing', type=int, default=1)
     parser.add_argument('--dataset_subset_portion', type=float, default=1.0)
+    parser.add_argument('--save_all_results', type=bool, default=True)
 
     args, _ = parser.parse_known_args()
 
